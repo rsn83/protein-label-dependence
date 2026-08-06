@@ -1,0 +1,6 @@
+name: protein-label-dep
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+prefix: /opt/anaconda3/envs/protein-label-dep
