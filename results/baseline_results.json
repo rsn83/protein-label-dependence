@@ -1,0 +1,6 @@
+{
+  "method": "GraphSAGE + independent classifier",
+  "best_val_micro_f1": 0.829582092504478,
+  "test_micro_f1": 0.8554855572170608,
+  "epochs": 100
+}
