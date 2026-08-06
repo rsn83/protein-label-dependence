@@ -23,6 +23,23 @@ sys.path.append(os.path.dirname(__file__))
 from metrics import compute_all_metrics, format_metrics
 
 
+def load_selected_labels(path="data/selected_labels.json"):
+    with open(path) as f:
+        sel = json.load(f)
+    return sel["selected_indices"]
+
+
+def filter_labels(dataset, indices):
+    """Returns a new list of Data objects with y restricted to the selected label indices."""
+    idx_tensor = torch.tensor(indices, dtype=torch.long)
+    filtered = []
+    for data in dataset:
+        data = data.clone()
+        data.y = data.y[:, idx_tensor]
+        filtered.append(data)
+    return filtered
+
+
 class GraphSAGEEncoder(torch.nn.Module):
     """Stage 1 — shared across all methods in the comparison."""
 
@@ -95,12 +112,18 @@ def main():
     val_dataset = PPI(root=root, split="val")
     test_dataset = PPI(root=root, split="test")
 
+    selected_indices = load_selected_labels()
+    print(f"Using {len(selected_indices)} selected labels (of {train_dataset[0].y.shape[1]} total)")
+    train_dataset = filter_labels(train_dataset, selected_indices)
+    val_dataset = filter_labels(val_dataset, selected_indices)
+    test_dataset = filter_labels(test_dataset, selected_indices)
+
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False)
 
-    in_dim = train_dataset.num_features   # 50
-    num_labels = train_dataset[0].y.shape[1]  # 121
+    in_dim = train_dataset[0].x.shape[1]   # 50
+    num_labels = train_dataset[0].y.shape[1]  # now len(selected_indices), e.g. 80
     hidden_dim = 256
     embed_dim = 256
 
