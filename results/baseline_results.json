@@ -1,6 +1,14 @@
 {
   "method": "GraphSAGE + independent classifier",
-  "best_val_micro_f1": 0.829582092504478,
-  "test_micro_f1": 0.8554855572170608,
+  "best_val_micro_f1": 0.8302651111135546,
+  "test_metrics": {
+    "micro_f1": 0.8567114307941488,
+    "macro_f1": 0.8292801702046185,
+    "jaccard_micro": 0.7493396276928019,
+    "jaccard_macro": 0.7192823577726561,
+    "subset_accuracy": 0.083454018826937,
+    "roc_auc_macro": 0.9506904888050703,
+    "roc_auc_labels_skipped": 0
+  },
   "epochs": 100
 }

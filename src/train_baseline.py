@@ -15,9 +15,12 @@ import torch.nn.functional as F
 from torch_geometric.datasets import PPI
 from torch_geometric.loader import DataLoader
 from torch_geometric.nn import SAGEConv
-from sklearn.metrics import f1_score
 import json
 import os
+import sys
+
+sys.path.append(os.path.dirname(__file__))
+from metrics import compute_all_metrics, format_metrics
 
 
 class GraphSAGEEncoder(torch.nn.Module):
@@ -68,19 +71,19 @@ def train_epoch(encoder, head, loader, optimizer, device):
 
 @torch.no_grad()
 def evaluate(encoder, head, loader, device):
+    """Returns a full metrics dict (micro/macro F1, Jaccard, subset accuracy, ROC-AUC)."""
     encoder.eval()
     head.eval()
-    preds, ys = [], []
+    probs, ys = [], []
     for batch in loader:
         batch = batch.to(device)
         z = encoder(batch.x, batch.edge_index)
         logits = head(z)
-        preds.append((torch.sigmoid(logits) > 0.5).float().cpu())
+        probs.append(torch.sigmoid(logits).cpu())
         ys.append(batch.y.cpu())
-    preds = torch.cat(preds, dim=0).numpy()
+    probs = torch.cat(probs, dim=0).numpy()
     ys = torch.cat(ys, dim=0).numpy()
-    micro_f1 = f1_score(ys, preds, average="micro", zero_division=0)
-    return micro_f1
+    return compute_all_metrics(ys, probs)
 
 
 def main():
@@ -108,30 +111,31 @@ def main():
         list(encoder.parameters()) + list(head.parameters()), lr=0.005
     )
 
-    best_val_f1 = 0
-    best_test_f1 = 0
+    best_val_micro_f1 = 0
+    best_test_metrics = None
     epochs = 100
 
     for epoch in range(1, epochs + 1):
         loss = train_epoch(encoder, head, train_loader, optimizer, device)
-        val_f1 = evaluate(encoder, head, val_loader, device)
-        if val_f1 > best_val_f1:
-            best_val_f1 = val_f1
-            best_test_f1 = evaluate(encoder, head, test_loader, device)
+        val_metrics = evaluate(encoder, head, val_loader, device)
+        if val_metrics["micro_f1"] > best_val_micro_f1:
+            best_val_micro_f1 = val_metrics["micro_f1"]
+            best_test_metrics = evaluate(encoder, head, test_loader, device)
         if epoch % 10 == 0 or epoch == 1:
             print(f"Epoch {epoch:03d} | Loss {loss:.4f} | "
-                  f"Val micro-F1 {val_f1:.4f} | Best test micro-F1 {best_test_f1:.4f}")
+                  f"Val micro-F1 {val_metrics['micro_f1']:.4f} | "
+                  f"Best test micro-F1 {best_test_metrics['micro_f1']:.4f}")
 
-    print(f"\nFinal: best val micro-F1 = {best_val_f1:.4f}, "
-          f"corresponding test micro-F1 = {best_test_f1:.4f}")
+    print(f"\nFinal test metrics (at best val checkpoint):")
+    print(format_metrics(best_test_metrics))
 
     os.makedirs("results", exist_ok=True)
     with open("results/baseline_results.json", "w") as f:
         json.dump(
             {
                 "method": "GraphSAGE + independent classifier",
-                "best_val_micro_f1": best_val_f1,
-                "test_micro_f1": best_test_f1,
+                "best_val_micro_f1": best_val_micro_f1,
+                "test_metrics": best_test_metrics,
                 "epochs": epochs,
             },
             f,
