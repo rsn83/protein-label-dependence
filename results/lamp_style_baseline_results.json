@@ -1,0 +1,15 @@
+{
+  "method": "GraphSAGE + LaMP (attention-based label message passing, 2 rounds, structure-agnostic)",
+  "n_rounds": 2,
+  "best_val_micro_f1": 0.7754128783915503,
+  "test_metrics": {
+    "micro_f1": 0.7911180376138908,
+    "macro_f1": 0.7501723693571221,
+    "jaccard_micro": 0.6544212439503773,
+    "jaccard_macro": 0.6245251360942996,
+    "subset_accuracy": 0.021542360608254887,
+    "roc_auc_macro": 0.8968603691210912,
+    "roc_auc_labels_skipped": 0
+  },
+  "epochs": 100
+}
