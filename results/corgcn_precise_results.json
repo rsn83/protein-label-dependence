@@ -1,0 +1,16 @@
+{
+  "method": "GraphSAGE + CorGCN (precise, Eq 7-18, K'=20 macro prototypes, L_cmi/L_lm included with fixed macro-label grouping in place of learned k-means clustering)",
+  "k_prime": 20,
+  "top_lambda": 5,
+  "best_val_micro_f1": 0.7962436156151582,
+  "test_metrics": {
+    "micro_f1": 0.8183712281427313,
+    "macro_f1": 0.7876707582142485,
+    "jaccard_micro": 0.6925789618819337,
+    "jaccard_macro": 0.6647695671977751,
+    "subset_accuracy": 0.037110789283128165,
+    "roc_auc_macro": 0.9202227321988274,
+    "roc_auc_labels_skipped": 0
+  },
+  "epochs": 100
+}

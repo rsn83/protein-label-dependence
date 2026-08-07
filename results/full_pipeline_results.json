@@ -1,0 +1,92 @@
+{
+  "humloc__transductive__gcn__independent": {
+    "ranking_loss": 0.14127518381939605,
+    "hamming_loss": 0.07900780891134589,
+    "macro_auc": 0.592806132940477,
+    "micro_auc": 0.8329369829916405,
+    "macro_ap": 0.1755043477875569,
+    "micro_ap": 0.39028983587084676,
+    "lrap": 0.6267952037244645,
+    "label_homophily": 0.44015082034036473
+  },
+  "humloc__transductive__gcn__dependency": {
+    "ranking_loss": 0.14431860342230118,
+    "hamming_loss": 0.07929490124023886,
+    "macro_auc": 0.6032546846440576,
+    "micro_auc": 0.8316228903234586,
+    "macro_ap": 0.17898847615046137,
+    "micro_ap": 0.4017784619537253,
+    "lrap": 0.6216972224809848,
+    "label_homophily": 0.44015082034036473
+  },
+  "humloc__transductive__gcn__gmnn": {
+    "ranking_loss": 0.14192009758730015,
+    "hamming_loss": 0.07940973817179604,
+    "macro_auc": 0.602764489445949,
+    "micro_auc": 0.8374244245869871,
+    "macro_ap": 0.18394586330570695,
+    "micro_ap": 0.4012585096782841,
+    "lrap": 0.6252315576973944,
+    "label_homophily": 0.44015082034036473
+  },
+  "humloc__transductive__gcn__lamp": {
+    "ranking_loss": 0.14315825519603653,
+    "hamming_loss": 0.07918006430868167,
+    "macro_auc": 0.6830206961599187,
+    "micro_auc": 0.8652231246588581,
+    "macro_ap": 0.19792008177198564,
+    "micro_ap": 0.4073105274338046,
+    "lrap": 0.620359971173878,
+    "label_homophily": 0.44015082034036473
+  },
+  "humloc__transductive__gcn__corgcn": {
+    "ranking_loss": 0.1539685127305706,
+    "hamming_loss": 0.07814653192466697,
+    "macro_auc": 0.6405609696220108,
+    "micro_auc": 0.8480242714302312,
+    "macro_ap": 0.18055687595788542,
+    "micro_ap": 0.3939977418613872,
+    "lrap": 0.5903672504255292,
+    "label_homophily": 0.44015082034036473
+  },
+  "humloc__transductive__sage__independent": {
+    "ranking_loss": 0.136856678958769,
+    "hamming_loss": 0.08170647680293983,
+    "macro_auc": 0.6812188285932266,
+    "micro_auc": 0.848052771681534,
+    "macro_ap": 0.18954664602814436,
+    "micro_ap": 0.38628802460130507,
+    "lrap": 0.6317243882858843,
+    "label_homophily": 0.44015082034036473
+  },
+  "humloc__transductive__sage__dependency": {
+    "ranking_loss": 0.14303102444179616,
+    "hamming_loss": 0.0810174552135967,
+    "macro_auc": 0.6844921457508187,
+    "micro_auc": 0.8450037369135812,
+    "macro_ap": 0.21273424277617106,
+    "micro_ap": 0.39403412589949616,
+    "lrap": 0.6283420993529518,
+    "label_homophily": 0.44015082034036473
+  },
+  "humloc__transductive__sage__gmnn": {
+    "ranking_loss": 0.13813512318335472,
+    "hamming_loss": 0.08187873220027561,
+    "macro_auc": 0.6956164876150074,
+    "micro_auc": 0.8496826137554795,
+    "macro_ap": 0.21232994337199254,
+    "micro_ap": 0.39509331008576676,
+    "lrap": 0.6319833431871219,
+    "label_homophily": 0.44015082034036473
+  },
+  "humloc__transductive__sage__lamp": {
+    "ranking_loss": 0.1501704685989252,
+    "hamming_loss": 0.08256775378961874,
+    "macro_auc": 0.6919480628528982,
+    "micro_auc": 0.8537951657839506,
+    "macro_ap": 0.17652524101765285,
+    "micro_ap": 0.37894525093027137,
+    "lrap": 0.6092814708067917,
+    "label_homophily": 0.44015082034036473
+  }
+}

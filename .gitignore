@@ -3,3 +3,7 @@ checkpoints/*.pt
 checkpoints/*.pkl
 data/embeddings/*.npy
 data/raw/
+__pycache__/
+*.pyc
+data/cached_datasets/
+MLGNC/

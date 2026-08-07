@@ -1,0 +1,35 @@
+{
+  "n_nodes": 1767,
+  "baseline": {
+    "micro_f1": 0.5795936395759718,
+    "macro_f1": 0.5085024928072015,
+    "jaccard_micro": 0.4080477641644381,
+    "jaccard_macro": 0.35839790893311313,
+    "subset_accuracy": 0.014124293785310734,
+    "roc_auc_macro": 0.6388246920583474,
+    "roc_auc_labels_skipped": 0
+  },
+  "gmnn_inspired": {
+    "micro_f1": 0.5703067932797663,
+    "macro_f1": 0.4943976908024358,
+    "jaccard_micro": 0.39890151998978157,
+    "jaccard_macro": 0.3469251146718456,
+    "subset_accuracy": 0.011299435028248588,
+    "roc_auc_macro": 0.6304778973254324,
+    "roc_auc_labels_skipped": 0
+  },
+  "corgcn": {
+    "micro_f1": 0.6135461568008195,
+    "macro_f1": 0.5298582946094363,
+    "jaccard_micro": 0.4425290894539186,
+    "jaccard_macro": 0.3806743458142349,
+    "subset_accuracy": 0.00847457627118644,
+    "roc_auc_macro": 0.6860449509841156,
+    "roc_auc_labels_skipped": 0
+  },
+  "inductive_comparison": {
+    "baseline": 0.8815,
+    "gmnn_inspired": 0.9022,
+    "corgcn": 0.8199
+  }
+}
