@@ -1,0 +1,5 @@
+{
+  "in_dim": 50,
+  "hidden_dim": 256,
+  "embed_dim": 256
+}

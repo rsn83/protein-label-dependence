@@ -1,0 +1,15 @@
+{
+  "method": "GraphSAGE + independent classifier + GMNN-style label propagation over PPI graph (2 rounds)",
+  "n_rounds": 2,
+  "best_val_micro_f1": 0.878669697589985,
+  "test_metrics": {
+    "micro_f1": 0.90224591214136,
+    "macro_f1": 0.8899357802812929,
+    "jaccard_micro": 0.8219016646080975,
+    "jaccard_macro": 0.8085162956192201,
+    "subset_accuracy": 0.1784938450398262,
+    "roc_auc_macro": 0.9666994947668168,
+    "roc_auc_labels_skipped": 0
+  },
+  "epochs": 100
+}

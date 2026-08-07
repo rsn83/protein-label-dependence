@@ -1,0 +1,15 @@
+{
+  "method": "GraphSAGE + independent classifier + structure-constrained dependency correction",
+  "n_edges_used": 150,
+  "best_val_micro_f1": 0.8647984981424811,
+  "test_metrics": {
+    "micro_f1": 0.8884659937117326,
+    "macro_f1": 0.8744282668218762,
+    "jaccard_micro": 0.7993151704630043,
+    "jaccard_macro": 0.7846600457848589,
+    "subset_accuracy": 0.14174511223750905,
+    "roc_auc_macro": 0.9588085596761164,
+    "roc_auc_labels_skipped": 0
+  },
+  "epochs": 100
+}

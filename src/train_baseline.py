@@ -137,6 +137,7 @@ def main():
     best_val_micro_f1 = 0
     best_test_metrics = None
     epochs = 100
+    os.makedirs("checkpoints", exist_ok=True)
 
     for epoch in range(1, epochs + 1):
         loss = train_epoch(encoder, head, train_loader, optimizer, device)
@@ -144,6 +145,7 @@ def main():
         if val_metrics["micro_f1"] > best_val_micro_f1:
             best_val_micro_f1 = val_metrics["micro_f1"]
             best_test_metrics = evaluate(encoder, head, test_loader, device)
+            torch.save(encoder.state_dict(), "checkpoints/graphsage_encoder_best.pt")
         if epoch % 10 == 0 or epoch == 1:
             print(f"Epoch {epoch:03d} | Loss {loss:.4f} | "
                   f"Val micro-F1 {val_metrics['micro_f1']:.4f} | "
@@ -151,6 +153,10 @@ def main():
 
     print(f"\nFinal test metrics (at best val checkpoint):")
     print(format_metrics(best_test_metrics))
+    print(f"Encoder checkpoint saved to checkpoints/graphsage_encoder_best.pt")
+
+    with open("checkpoints/encoder_config.json", "w") as f:
+        json.dump({"in_dim": in_dim, "hidden_dim": hidden_dim, "embed_dim": embed_dim}, f, indent=2)
 
     os.makedirs("results", exist_ok=True)
     with open("results/baseline_results.json", "w") as f:

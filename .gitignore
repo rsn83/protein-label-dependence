@@ -1,0 +1,5 @@
+checkpoints/*.pkl
+checkpoints/*.pt
+checkpoints/*.pkl
+data/embeddings/*.npy
+data/raw/

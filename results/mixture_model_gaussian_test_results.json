@@ -1,0 +1,12 @@
+{
+  "method": "GraphSAGE + ECAI 2016 mixture model",
+  "metrics": {
+    "micro_f1": 0.56640625,
+    "macro_f1": 0.4514319381598793,
+    "jaccard_micro": 0.39509536784741145,
+    "jaccard_macro": 0.34655753968253966,
+    "subset_accuracy": 0.0,
+    "roc_auc_macro": 0.6469394841269841,
+    "roc_auc_labels_skipped": 0
+  }
+}

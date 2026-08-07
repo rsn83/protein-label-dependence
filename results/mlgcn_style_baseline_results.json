@@ -1,0 +1,16 @@
+{
+  "method": "GraphSAGE + ML-GCN (label co-occurrence GCN, learnable label embeddings substituting GloVe)",
+  "tau": 0.4,
+  "p": 0.2,
+  "best_val_micro_f1": 0.863136942887022,
+  "test_metrics": {
+    "micro_f1": 0.8857805832862143,
+    "macro_f1": 0.8709404103073979,
+    "jaccard_micro": 0.7949785921867027,
+    "jaccard_macro": 0.7801367256903899,
+    "subset_accuracy": 0.10481535119478638,
+    "roc_auc_macro": 0.9585413368031375,
+    "roc_auc_labels_skipped": 0
+  },
+  "epochs": 100
+}

@@ -1,13 +1,13 @@
 {
   "method": "GraphSAGE + independent classifier",
-  "best_val_micro_f1": 0.8594094944650033,
+  "best_val_micro_f1": 0.863286546560786,
   "test_metrics": {
-    "micro_f1": 0.8815378999579758,
-    "macro_f1": 0.8649938201332121,
-    "jaccard_micro": 0.7881696661199817,
-    "jaccard_macro": 0.7714200190568506,
-    "subset_accuracy": 0.11929761042722664,
-    "roc_auc_macro": 0.955948605998822,
+    "micro_f1": 0.885745530472712,
+    "macro_f1": 0.8710758096817386,
+    "jaccard_micro": 0.794922124789395,
+    "jaccard_macro": 0.7802882708487342,
+    "subset_accuracy": 0.12907313540912382,
+    "roc_auc_macro": 0.957924645733406,
     "roc_auc_labels_skipped": 0
   },
   "epochs": 100
