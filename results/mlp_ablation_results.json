@@ -1,0 +1,28 @@
+{
+  "mlp_baseline": {
+    "val_micro_f1": 0.5949997514205584,
+    "test_metrics": {
+      "micro_f1": 0.6032750051065568,
+      "macro_f1": 0.4758793546750407,
+      "jaccard_micro": 0.43192110638256387,
+      "jaccard_macro": 0.33424401779071405,
+      "subset_accuracy": 0.09739319333816075,
+      "roc_auc_macro": 0.6911183372336301,
+      "roc_auc_labels_skipped": 0
+    }
+  },
+  "mlp_dependency_correction": {
+    "val_micro_f1": 0.5925508728391694,
+    "test_metrics": {
+      "micro_f1": 0.6011025704999162,
+      "macro_f1": 0.4719748987115495,
+      "jaccard_micro": 0.4296973872592853,
+      "jaccard_macro": 0.3312533439805535,
+      "subset_accuracy": 0.10372918175235336,
+      "roc_auc_macro": 0.6899680424968166,
+      "roc_auc_labels_skipped": 0
+    }
+  },
+  "delta_micro_f1": -0.0021724346066406275,
+  "graphsage_delta_for_comparison": 0.007
+}
