@@ -1,0 +1,26 @@
+{
+  "sage": {
+    "val_micro_f1": 0.7963460563978252,
+    "test_metrics": {
+      "micro_f1": 0.8185158854290093,
+      "macro_f1": 0.7895482089535495,
+      "jaccard_micro": 0.692786196051583,
+      "jaccard_macro": 0.6654661887341218,
+      "subset_accuracy": 0.04018826937002172,
+      "roc_auc_macro": 0.9218932516972853,
+      "roc_auc_labels_skipped": 0
+    }
+  },
+  "gcn": {
+    "val_micro_f1": 0.686747141723058,
+    "test_metrics": {
+      "micro_f1": 0.7001693246229225,
+      "macro_f1": 0.6374999516164148,
+      "jaccard_micro": 0.5386619487340574,
+      "jaccard_macro": 0.4816855434287426,
+      "subset_accuracy": 0.007060101375814627,
+      "roc_auc_macro": 0.8123103568842842,
+      "roc_auc_labels_skipped": 0
+    }
+  }
+}
