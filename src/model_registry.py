@@ -3,7 +3,7 @@ Model registry: factory functions for encoders and heads, decoupled from
 any specific dataset.
 
 Encoders: "gcn", "sage"
-Heads: "independent", "dependency", "gmnn", "lamp", "corgcn"
+Heads: "independent", "dependency", "mlgcn_chen", "mlgcn_gao", "gmnn", "lamp", "corgcn"
 """
 
 import torch
@@ -22,6 +22,8 @@ from train_corgcn_precise import (
 from train_dependency_baseline import DependencyCorrectionHead
 from train_gmnn_style_baseline import GMNNStyleHead
 from train_lamp_style_baseline import LaMPHead
+from train_mlgcn_style_baseline import MLGCNHead, build_reweighted_adjacency
+from train_mlgcn_gao_style import MLGCNGaoHead, compute_unigram_noise_dist
 
 
 ENCODERS = {
@@ -47,13 +49,6 @@ class IndependentHead(nn.Module):
 
 
 def build_generic_dependency_edges(y_train: np.ndarray, tau: float = 0.4, max_edges: int = 200):
-    """
-    Fast, generic label-correlation graph (co-occurrence based), used as the
-    structure source for the 'dependency' head across ALL datasets in this
-    pipeline — NOT the slow BANJO/hill-climbing structure used for the
-    one-off SagePPI experiment. Same category of method, much cheaper,
-    dataset-agnostic.
-    """
     n_labels = y_train.shape[1]
     co_occur = y_train.T @ y_train
     label_counts = y_train.sum(axis=0)
@@ -78,18 +73,15 @@ def build_generic_dependency_edges(y_train: np.ndarray, tau: float = 0.4, max_ed
 HEAD_REQUIRES_EDGE_INDEX = {
     "independent": False,
     "dependency": False,
+    "mlgcn_chen": False,
+    "mlgcn_gao": False,
     "gmnn": True,
     "lamp": False,
     "corgcn": True,
 }
 
 
-def get_head(head_type: str, embed_dim: int, num_labels: int, device, dependency_edges=None):
-    """
-    Returns (head_module, extra_info_dict). extra_info_dict carries anything
-    needed for training (e.g. CorGCN's group_map), so the training loop
-    can stay generic across head types.
-    """
+def get_head(head_type: str, embed_dim: int, num_labels: int, device, dependency_edges=None, y_train_np=None):
     if head_type == "independent":
         return IndependentHead(embed_dim, num_labels).to(device), {}
 
@@ -97,6 +89,19 @@ def get_head(head_type: str, embed_dim: int, num_labels: int, device, dependency
         if dependency_edges is None:
             raise ValueError("dependency head requires dependency_edges (see build_generic_dependency_edges)")
         return DependencyCorrectionHead(embed_dim, num_labels, dependency_edges).to(device), {}
+
+    elif head_type == "mlgcn_chen":
+        if y_train_np is None:
+            raise ValueError("mlgcn_chen head requires y_train_np to build its co-occurrence adjacency")
+        adjacency = build_reweighted_adjacency(y_train_np, tau=0.4, p=0.2)
+        return MLGCNHead(embed_dim, num_labels, adjacency).to(device), {}
+
+    elif head_type == "mlgcn_gao":
+        if y_train_np is None:
+            raise ValueError("mlgcn_gao head requires y_train_np to build its unigram noise distribution")
+        head = MLGCNGaoHead(embed_dim, num_labels).to(device)
+        noise_dist = compute_unigram_noise_dist(y_train_np, device)
+        return head, {"noise_dist": noise_dist}
 
     elif head_type == "gmnn":
         return GMNNStyleHead(embed_dim, num_labels, n_rounds=2).to(device), {}
@@ -106,7 +111,7 @@ def get_head(head_type: str, embed_dim: int, num_labels: int, device, dependency
 
     elif head_type == "corgcn":
         k_prime = min(20, num_labels)
-        head = CorGCNHead(embed_dim, num_labels, k_prime=k_prime, proto_dim=64, top_lambda=5).to(device)
+        head = CorGCNHead(embed_dim, num_labels, k_prime=k_prime, proto_dim=64, top_lambda=7).to(device)
         group_map = build_macro_group_map(num_labels, k_prime, device)
         return head, {"group_map": group_map, "k_prime": k_prime}
 

@@ -44,10 +44,6 @@ class LaMPHead(nn.Module):
         self.n_feature_tokens = n_feature_tokens
         self.label_dim = label_dim
         self.label_embeddings = nn.Parameter(torch.randn(n_labels, label_dim) * 0.1)
-        # Project into MULTIPLE feature tokens, not one — with a single token,
-        # attention is mathematically forced to produce identical output for
-        # every label query (softmax over 1 key is trivially 1.0 regardless of
-        # query) — this is the exact collapse Cursor's diagnostic found.
         self.feature_proj = nn.Linear(instance_embed_dim, n_feature_tokens * label_dim)
 
         self.feature_to_label_attn = nn.ModuleList(
@@ -58,11 +54,6 @@ class LaMPHead(nn.Module):
         )
         self.norm1 = nn.ModuleList([nn.LayerNorm(label_dim) for _ in range(n_rounds)])
         self.norm2 = nn.ModuleList([nn.LayerNorm(label_dim) for _ in range(n_rounds)])
-        # Feedforward blocks after each attention phase — WITHOUT these, stacked
-        # self-attention layers collapse toward a shared representation (attention
-        # rank collapse, Dong et al. 2021), which is what caused the stuck-at-zero
-        # symptom: label embeddings converged toward each other, so the shared
-        # readout produced nearly identical logits for every label.
         self.ffn1 = nn.ModuleList(
             [nn.Sequential(nn.Linear(label_dim, label_dim * 2), nn.ReLU(),
                             nn.Linear(label_dim * 2, label_dim)) for _ in range(n_rounds)]
@@ -74,47 +65,40 @@ class LaMPHead(nn.Module):
         self.norm1b = nn.ModuleList([nn.LayerNorm(label_dim) for _ in range(n_rounds)])
         self.norm2b = nn.ModuleList([nn.LayerNorm(label_dim) for _ in range(n_rounds)])
 
-        # LayerScale (Touvron et al. 2021): learnable, near-zero-initialized scale
-        # on each sub-layer's output before adding to the residual. Without this,
-        # the (initially uninformative, uniform) attention output grows large and
-        # dominates the residual via LayerNorm's scale-invariance before attention
-        # has had a chance to learn to differentiate labels — the exact collapse
-        # Cursor's diagnostic traced (uniform attention entropy, |attn_out| >> |labels|).
         self.scale_attn1 = nn.ParameterList([nn.Parameter(torch.ones(label_dim) * 1e-3) for _ in range(n_rounds)])
         self.scale_ffn1 = nn.ParameterList([nn.Parameter(torch.ones(label_dim) * 1e-3) for _ in range(n_rounds)])
         self.scale_attn2 = nn.ParameterList([nn.Parameter(torch.ones(label_dim) * 1e-3) for _ in range(n_rounds)])
         self.scale_ffn2 = nn.ParameterList([nn.Parameter(torch.ones(label_dim) * 1e-3) for _ in range(n_rounds)])
 
-        self.readout = nn.Linear(label_dim, 1)
-        # Fix cold-start collapse: initialize bias to the true label rate's log-odds,
-        # instead of 0. Without this, LayerNorm-normalized inputs + near-zero initial
-        # weights produce near-0.5 probability for every label, which rounds to
-        # all-negative under a 0.5 threshold and can take many epochs to escape.
-        true_rate = 0.4175  # observed training label density (see earlier diagnostic)
-        bias_init = torch.log(torch.tensor(true_rate / (1 - true_rate)))
-        self.readout.bias.data.fill_(bias_init.item())
+    def _readout(self, label_states):
+        return (label_states * self.label_embeddings.unsqueeze(0)).sum(dim=-1)
 
     def forward(self, z):
         N = z.shape[0]
-        z_proj = self.feature_proj(z).view(N, self.n_feature_tokens, self.label_dim)  # (N, K, label_dim) — MULTIPLE tokens
-        labels = self.label_embeddings.unsqueeze(0).expand(N, -1, -1)  # (N, n_labels, label_dim)
+        z_proj = self.feature_proj(z).view(N, self.n_feature_tokens, self.label_dim)
+        labels = self.label_embeddings.unsqueeze(0).expand(N, -1, -1)
+
+        intermediate_logits = []
 
         for t in range(self.n_rounds):
-            # (a) Feature-to-Label message passing
             attn_out, _ = self.feature_to_label_attn[t](labels, z_proj, z_proj)
             labels = self.norm1[t](labels + self.scale_attn1[t] * attn_out)
             labels = self.norm1b[t](labels + self.scale_ffn1[t] * self.ffn1[t](labels))
+            pred_after_f2l = self._readout(labels)
 
-            # (b) Label-to-Label message passing (full attention, structure-agnostic)
             attn_out2, _ = self.label_to_label_attn[t](labels, labels, labels)
             labels = self.norm2[t](labels + self.scale_attn2[t] * attn_out2)
             labels = self.norm2b[t](labels + self.scale_ffn2[t] * self.ffn2[t](labels))
+            pred_after_l2l = self._readout(labels)
 
-        logits = self.readout(labels).squeeze(-1)  # (N, n_labels)
-        return logits
+            if t < self.n_rounds - 1:
+                intermediate_logits.append((pred_after_f2l, pred_after_l2l))
+
+        final_logits = pred_after_l2l
+        return final_logits, intermediate_logits
 
 
-def train_epoch(encoder, head, loader, optimizer, device):
+def train_epoch(encoder, head, loader, optimizer, device, lam=0.2):
     encoder.train()
     head.train()
     total_loss = 0
@@ -122,8 +106,13 @@ def train_epoch(encoder, head, loader, optimizer, device):
         batch = batch.to(device)
         optimizer.zero_grad()
         z = encoder(batch.x, batch.edge_index)
-        logits = head(z)
-        loss = F.binary_cross_entropy_with_logits(logits, batch.y)
+        logits, intermediates = head(z)
+        L_out = F.binary_cross_entropy_with_logits(logits, batch.y)
+        L_int = sum(
+            F.binary_cross_entropy_with_logits(pred, batch.y)
+            for pair in intermediates for pred in pair
+        )
+        loss = L_out + lam * L_int
         loss.backward()
         optimizer.step()
         total_loss += loss.item() * batch.num_graphs
@@ -138,7 +127,7 @@ def evaluate(encoder, head, loader, device):
     for batch in loader:
         batch = batch.to(device)
         z = encoder(batch.x, batch.edge_index)
-        logits = head(z)
+        logits, _ = head(z)
         probs.append(torch.sigmoid(logits).cpu())
         ys.append(batch.y.cpu())
     probs = torch.cat(probs, dim=0).numpy()
@@ -179,21 +168,6 @@ def main():
     for epoch in range(1, epochs + 1):
         loss = train_epoch(encoder, head, train_loader, optimizer, device)
         val_metrics = evaluate(encoder, head, val_loader, device)
-        if epoch == 1 or epoch == 5:
-            # One-time diagnostic: are logits actually varying, or collapsed?
-            encoder.eval()
-            head.eval()
-            with torch.no_grad():
-                sample_batch = next(iter(val_loader)).to(device)
-                z = encoder(sample_batch.x, sample_batch.edge_index)
-                logits = head(z)
-                print(f"  [diagnostic] logits: mean={logits.mean().item():.4f}, "
-                      f"std={logits.std().item():.4f}, min={logits.min().item():.4f}, "
-                      f"max={logits.max().item():.4f}")
-                print(f"  [diagnostic] std across labels (per instance, averaged): "
-                      f"{logits.std(dim=1).mean().item():.4f}")
-                print(f"  [diagnostic] std across instances (per label, averaged): "
-                      f"{logits.std(dim=0).mean().item():.4f}")
         if val_metrics["micro_f1"] > best_val_micro_f1:
             best_val_micro_f1 = val_metrics["micro_f1"]
             best_test_metrics = evaluate(encoder, head, test_loader, device)

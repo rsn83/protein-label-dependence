@@ -1,14 +1,7 @@
 """
 Master pipeline: runs the full factorial —
-  datasets (humloc, pcg, eukaryotego) x protocols (transductive, inductive)
-  x encoders (gcn, sage) x heads (independent, dependency, gmnn, lamp, corgcn)
-
-Every run uses compute_full_metrics — the ONE canonical metric set
-(KDD 2025's 7 metrics + TMLR 2023's label homophily) — so every number in
-every cell of this grid is directly comparable.
-
-Usage:
-    python src/run_pipeline.py
+  datasets x protocols (transductive, inductive) x encoders (gcn, sage)
+  x heads (independent, dependency, mlgcn_chen, mlgcn_gao, gmnn, lamp, corgcn)
 """
 
 import torch
@@ -25,10 +18,7 @@ from metrics import compute_full_metrics, format_metrics
 
 
 def extract_induced_subgraph_edges(edge_index, mask):
-    """Returns edge_index remapped to LOCAL indices, restricted to edges
-    where both endpoints are in mask — needed so label_homophily's node
-    indices align with a y array that's already been filtered by mask."""
-    mask = mask.to(edge_index.device)  # fix: mask may be on CPU while edge_index is on GPU
+    mask = mask.to(edge_index.device)
     n = mask.shape[0]
     node_ids = mask.nonzero(as_tuple=True)[0]
     remap = torch.full((n,), -1, dtype=torch.long, device=mask.device)
@@ -47,13 +37,15 @@ def forward_pass(encoder, head, head_type, x, edge_index):
         logits, _ = head(z, edge_index)
     elif head_type == "gmnn":
         logits = head(z, edge_index)
+    elif head_type == "lamp":
+        logits, _ = head(z)
     else:
         logits = head(z, edge_index) if getattr(head, "needs_edge_index", False) else head(z)
     return logits
 
 
 def run_transductive(encoder_type, head_type, data, train_mask, val_mask, test_mask,
-                      device, epochs=150, hidden_dim=64):
+                      device, epochs=200, hidden_dim=64):
     in_dim = data.x.shape[1]
     num_labels = data.y.shape[1]
     x, edge_index, y = data.x.to(device), data.edge_index.to(device), data.y.to(device)
@@ -61,10 +53,14 @@ def run_transductive(encoder_type, head_type, data, train_mask, val_mask, test_m
     encoder = get_encoder(encoder_type, in_dim, hidden_dim, device)
 
     dep_edges = None
+    y_train_np = None
     if head_type == "dependency":
         dep_edges = build_generic_dependency_edges(y[train_mask].cpu().numpy())
+    elif head_type in ("mlgcn_chen", "mlgcn_gao"):
+        y_train_np = y[train_mask].cpu().numpy()
 
-    head, extra = get_head(head_type, hidden_dim, num_labels, device, dependency_edges=dep_edges)
+    head, extra = get_head(head_type, hidden_dim, num_labels, device,
+                            dependency_edges=dep_edges, y_train_np=y_train_np)
 
     params = list(encoder.parameters()) + list(head.parameters())
     optimizer = torch.optim.Adam(params, lr=0.005 if encoder_type == "sage" else 0.001)
@@ -91,6 +87,20 @@ def run_transductive(encoder_type, head_type, data, train_mask, val_mask, test_m
             alpha = (L_cls.detach() / (3 * L_cmi.detach() + 1e-8)).abs()
             beta = (L_cls.detach() / (3 * L_lm.detach() + 1e-8)).abs()
             loss = L_cls + alpha * L_cmi + beta * L_lm
+        elif head_type == "mlgcn_gao":
+            logits = head(z)
+            L_sigmoid = F.binary_cross_entropy_with_logits(logits[train_mask], y[train_mask])
+            L_node_label = head.node_label_loss(z[train_mask], y[train_mask], extra["noise_dist"], device)
+            L_label_label = head.label_label_loss(y[train_mask], extra["noise_dist"], device)
+            loss = L_sigmoid + head.lambda1 * L_label_label + head.lambda2 * L_node_label
+        elif head_type == "lamp":
+            logits, intermediates = head(z)
+            L_out = F.binary_cross_entropy_with_logits(logits[train_mask], y[train_mask])
+            L_int = sum(
+                F.binary_cross_entropy_with_logits(pred[train_mask], y[train_mask])
+                for pair in intermediates for pred in pair
+            )
+            loss = L_out + 0.2 * L_int
         else:
             logits = forward_pass(encoder, head, head_type, x, edge_index)
             loss = F.binary_cross_entropy_with_logits(logits[train_mask], y[train_mask])
@@ -119,7 +129,7 @@ def run_transductive(encoder_type, head_type, data, train_mask, val_mask, test_m
 
 
 def run_inductive(encoder_type, head_type, train_data, val_data, test_data,
-                   device, epochs=150, hidden_dim=64):
+                   device, epochs=200, hidden_dim=64):
     in_dim = train_data.x.shape[1]
     num_labels = train_data.y.shape[1]
     tx, tei, ty = train_data.x.to(device), train_data.edge_index.to(device), train_data.y.to(device)
@@ -129,10 +139,14 @@ def run_inductive(encoder_type, head_type, train_data, val_data, test_data,
     encoder = get_encoder(encoder_type, in_dim, hidden_dim, device)
 
     dep_edges = None
+    y_train_np = None
     if head_type == "dependency":
         dep_edges = build_generic_dependency_edges(ty.cpu().numpy())
+    elif head_type in ("mlgcn_chen", "mlgcn_gao"):
+        y_train_np = ty.cpu().numpy()
 
-    head, extra = get_head(head_type, hidden_dim, num_labels, device, dependency_edges=dep_edges)
+    head, extra = get_head(head_type, hidden_dim, num_labels, device,
+                            dependency_edges=dep_edges, y_train_np=y_train_np)
 
     params = list(encoder.parameters()) + list(head.parameters())
     optimizer = torch.optim.Adam(params, lr=0.005 if encoder_type == "sage" else 0.001)
@@ -159,6 +173,22 @@ def run_inductive(encoder_type, head_type, train_data, val_data, test_data,
             alpha = (L_cls.detach() / (3 * L_cmi.detach() + 1e-8)).abs()
             beta = (L_cls.detach() / (3 * L_lm.detach() + 1e-8)).abs()
             loss = L_cls + alpha * L_cmi + beta * L_lm
+        elif head_type == "mlgcn_gao":
+            z = encoder(tx, tei)
+            logits = head(z)
+            L_sigmoid = F.binary_cross_entropy_with_logits(logits, ty)
+            L_node_label = head.node_label_loss(z, ty, extra["noise_dist"], device)
+            L_label_label = head.label_label_loss(ty, extra["noise_dist"], device)
+            loss = L_sigmoid + head.lambda1 * L_label_label + head.lambda2 * L_node_label
+        elif head_type == "lamp":
+            z = encoder(tx, tei)
+            logits, intermediates = head(z)
+            L_out = F.binary_cross_entropy_with_logits(logits, ty)
+            L_int = sum(
+                F.binary_cross_entropy_with_logits(pred, ty)
+                for pair in intermediates for pred in pair
+            )
+            loss = L_out + 0.2 * L_int
         else:
             logits = forward_pass(encoder, head, head_type, tx, tei)
             loss = F.binary_cross_entropy_with_logits(logits, ty)
@@ -191,7 +221,6 @@ import numpy as np
 
 
 def aggregate_trials(trial_results):
-    """Given a list of metric dicts (one per trial), returns mean+std per metric."""
     keys = trial_results[0].keys()
     agg = {}
     for k in keys:
@@ -214,7 +243,7 @@ def main():
     protocols = ["transductive", "inductive"]
     encoders = ENCODER_TYPES
     heads = HEAD_TYPES
-    n_trials = 5  # matches Bei et al.'s own "five trial runs" protocol
+    n_trials = 5
 
     os.makedirs("results", exist_ok=True)
     results_path = "results/full_pipeline_results_5trial.json"
@@ -243,21 +272,17 @@ def main():
                     trial_results = []
                     try:
                         for trial in range(n_trials):
+                            torch.manual_seed(trial)
                             if protocol == "transductive":
-                                # Note: for datasets with a fixed authors' split.pt (Humloc,
-                                # EukaryoteGo, Blogcatalog), all trials currently reuse that
-                                # SAME split — only model initialization/training randomness
-                                # varies across trials. For pcg (no split.pt) and the
-                                # inductive-ized partitions, each trial gets an independent
-                                # random split (seed=trial), closer to the paper's true
-                                # "5 independent splits" protocol.
-                                data, train_mask, val_mask, test_mask = load_cached_dataset(dataset_name, "transductive")
-                                torch.manual_seed(trial)
+                                data, train_mask, val_mask, test_mask = load_cached_dataset(
+                                    dataset_name, "transductive", trial=trial
+                                )
                                 result = run_transductive(encoder_type, head_type, data,
                                                            train_mask, val_mask, test_mask, device)
                             else:
-                                train_data, val_data, test_data = load_cached_dataset(dataset_name, "inductive")
-                                torch.manual_seed(trial)
+                                train_data, val_data, test_data = load_cached_dataset(
+                                    dataset_name, "inductive", trial=trial
+                                )
                                 result = run_inductive(encoder_type, head_type,
                                                         train_data, val_data, test_data, device)
                             trial_results.append(result)

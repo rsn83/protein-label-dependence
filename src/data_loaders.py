@@ -176,7 +176,7 @@ def load_sageppi_native_inductive(selected_indices, root="./data/raw"):
 
 def load_sageppi_transductive(selected_indices, root="./data/raw", seed=0):
     from train_baseline import filter_labels
-    print("Loading SagePPI (transductive, merged)...")
+    print(f"Loading SagePPI (transductive, merged, seed={seed})...")
     all_graphs = (
         list(filter_labels(PPI(root=root, split="train"), selected_indices)) +
         list(filter_labels(PPI(root=root, split="val"), selected_indices)) +
@@ -212,7 +212,7 @@ CSV_MAT_DATASET_LOADERS = {
 ALL_DATASET_NAMES = list(CSV_MAT_DATASET_LOADERS.keys()) + ["sageppi"]
 
 
-def cache_all_datasets(cache_dir="data/cached_datasets", selected_indices=None):
+def cache_all_datasets(cache_dir="data/cached_datasets", selected_indices=None, n_trials=5):
     os.makedirs(cache_dir, exist_ok=True)
 
     for name, loader_fn in CSV_MAT_DATASET_LOADERS.items():
@@ -220,50 +220,72 @@ def cache_all_datasets(cache_dir="data/cached_datasets", selected_indices=None):
         if os.path.exists(cache_path):
             print(f"{name}: already cached, skipping")
             continue
-        print(f"\nBuilding cache for {name}...")
-        data, train_mask, val_mask, test_mask = loader_fn()
-        train_data, val_data, test_data = make_inductive_split(data)
+
+        print(f"\nBuilding {n_trials}-trial cache for {name}...")
+        trials_transductive = []
+        trials_inductive = []
+
+        for trial in range(n_trials):
+            if trial == 0:
+                data, train_mask, val_mask, test_mask = loader_fn()
+            else:
+                data, _, _, _ = loader_fn()
+                n = data.x.shape[0]
+                train_mask, val_mask, test_mask = make_random_masks(n, seed=trial)
+                print(f"  Trial {trial}: independent random split (seed={trial})")
+
+            trials_transductive.append({
+                "data": data, "train_mask": train_mask, "val_mask": val_mask, "test_mask": test_mask
+            })
+
+            train_data, val_data, test_data = make_inductive_split(data, seed=trial)
+            trials_inductive.append({
+                "train_data": train_data, "val_data": val_data, "test_data": test_data
+            })
+
         torch.save({
-            "transductive": {"data": data, "train_mask": train_mask,
-                              "val_mask": val_mask, "test_mask": test_mask},
-            "inductive": {"train_data": train_data, "val_data": val_data, "test_data": test_data},
+            "transductive_trials": trials_transductive,
+            "inductive_trials": trials_inductive,
         }, cache_path)
-        print(f"  Saved to {cache_path}")
+        print(f"  Saved {n_trials} trials to {cache_path}")
 
     if selected_indices is not None:
         cache_path = f"{cache_dir}/sageppi.pt"
         if os.path.exists(cache_path):
             print("sageppi: already cached, skipping")
         else:
-            print("\nBuilding cache for sageppi...")
-            data, train_mask, val_mask, test_mask = load_sageppi_transductive(selected_indices)
+            print(f"\nBuilding {n_trials}-trial cache for sageppi...")
+            trials_transductive = []
+            for trial in range(n_trials):
+                data, train_mask, val_mask, test_mask = load_sageppi_transductive(selected_indices, seed=trial)
+                trials_transductive.append({
+                    "data": data, "train_mask": train_mask, "val_mask": val_mask, "test_mask": test_mask
+                })
             train_dataset, val_dataset, test_dataset = load_sageppi_native_inductive(selected_indices)
             torch.save({
-                "transductive": {"data": data, "train_mask": train_mask,
-                                  "val_mask": val_mask, "test_mask": test_mask},
+                "transductive_trials": trials_transductive,
                 "inductive_native": {"train_dataset": train_dataset,
                                       "val_dataset": val_dataset, "test_dataset": test_dataset},
             }, cache_path)
             print(f"  Saved to {cache_path}")
     else:
-        print("\nselected_indices not provided — skipping sageppi caching. "
-              "Call cache_all_datasets(selected_indices=load_selected_labels()) to include it.")
+        print("\nselected_indices not provided — skipping sageppi caching.")
 
     print(f"\nDone. Cached datasets in {cache_dir}/")
 
 
-def load_cached_dataset(name, protocol, cache_dir="data/cached_datasets"):
+def load_cached_dataset(name, protocol, trial=0, cache_dir="data/cached_datasets"):
     cache_path = f"{cache_dir}/{name}.pt"
     if not os.path.exists(cache_path):
         raise FileNotFoundError(f"{cache_path} not found — run cache_all_datasets() first")
     cached = torch.load(cache_path, weights_only=False)
 
     if protocol == "transductive":
-        d = cached["transductive"]
+        d = cached["transductive_trials"][trial]
         return d["data"], d["train_mask"], d["val_mask"], d["test_mask"]
     elif protocol == "inductive":
-        if "inductive" in cached:
-            d = cached["inductive"]
+        if "inductive_trials" in cached:
+            d = cached["inductive_trials"][trial]
             return d["train_data"], d["val_data"], d["test_data"]
         elif "inductive_native" in cached:
             d = cached["inductive_native"]
